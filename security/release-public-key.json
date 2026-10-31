@@ -1,0 +1,6 @@
+{
+  "algorithm": "ecdsa-p256-sha256-p1363",
+  "key_id": "2622d0bb9114a6cb72bb83388be6f3c8055cc75888b6a6f1b12b75acbd1a4ece",
+  "repository": "perpetus/krypton-windows",
+  "public_key": "0478acf41c133cfd9b23ed8f1dd509f445c6ca2efff392f20998736338d9de90bd267d4750757284518823c0cc2b91b9da41292dd19104f7aca2d4eb17b328e26a"
+}

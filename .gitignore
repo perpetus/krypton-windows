@@ -1,0 +1,9 @@
+/release-assets/
+/.release-staging/
+*.log
+__pycache__/
+*.dpapi
+*.pfx
+*.key
+.env
+.env.*
