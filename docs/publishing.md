@@ -12,7 +12,7 @@ Then stage a release in this repository:
 python tools/stage-release.py
 ```
 
-This copies the already signed installer/update assets, verifies their signatures, checks the update archive's size/hash, bundles the current Krypton source layers and native components, signs that source snapshot, and produces signed `SHA256SUMS`. Outputs go to the ignored `release-assets/v0.20.1.1/` directory. No release is created by this staging command.
+This copies the already signed installer/update assets, verifies their signatures, checks the update archive's size/hash, bundles the current Krypton source layers and native components, signs that source snapshot, and produces signed `SHA256SUMS`. Outputs go to the ignored `release-assets/v<browser-version>/` directory. No release is created by this staging command. Browser and Chromium versions come from the prepared package and its signed native package marker.
 
 The source snapshot includes local modifications, upstream source layers and revision records, and instructions for obtaining Chromium's source/dependencies. It excludes build outputs, dependencies, reference checkouts, repository metadata, and private signing material. GitHub's automatic archive of this release-documentation repository is not the browser source snapshot.
 
@@ -23,6 +23,11 @@ Publish tag `v0.20.1.1` using `releases/v0.20.1.1.md` as its release notes, atta
 The current release is for manual installer testing. Builds, archive integrity, packaged UI hashes, file properties, and signatures have been checked. Automated tests for the new update logic, live upgrades, clean-machine installation, same-version UI replacement, and native visual acceptance remain pending.
 
 ## Later stable releases
+
+Use `python tools/stage-release.py --release-type stable` to stage a release
+for the automatic updater. The default remains `prerelease` for manual setup
+testing. GitHub's latest-release endpoint excludes prereleases; a build meant
+to exercise the installed updater must be published as stable and latest.
 
 Use a new four-part browser version for changed browser binaries, and a new GitHub tag. Keep old full packages and their manifests to generate useful deltas. Verify the intended native UI DLL against the local Release output before packaging. Fully close Krypton before testing repair/replacement of an installed version.
 

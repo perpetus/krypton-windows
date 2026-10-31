@@ -1,10 +1,12 @@
 """Verify and stage signed Windows release assets; never uploads or publishes."""
 
 import argparse
+import configparser
 from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import zipfile
@@ -131,6 +133,8 @@ def main():
     parser.add_argument('--updater-root', type=Path, default=ROOT.parent / 'KryptonUpdater')
     parser.add_argument('--browser-root', type=Path, default=ROOT.parent / 'Krypton')
     parser.add_argument('--ui-root', type=Path, default=ROOT.parent / 'KryptonUI')
+    parser.add_argument('--release-type', choices=('prerelease', 'stable'), default='prerelease',
+                        help='GitHub release classification; stable is visible to the automatic updater')
     args = parser.parse_args()
     updater = args.updater_root.resolve(strict=True)
     dist = updater / 'out/dist'
@@ -138,8 +142,9 @@ def main():
     package = json.loads(Path(plan['source_package']).read_text(encoding='utf-8'))
     version = package['browser_version']
     tag = 'v' + version
-    if plan['repository'] != 'perpetus/krypton-windows' or plan['tag'] != tag or version != '0.20.1.1':
-        raise ValueError('Unexpected first-release repository, tag, or version')
+    if (plan['repository'] != 'perpetus/krypton-windows' or plan['tag'] != tag or
+            re.fullmatch(r'\d+\.\d+\.\d+\.\d+', version) is None):
+        raise ValueError('Unexpected release repository, tag, or browser version')
     directory = ROOT / 'release-assets' / tag
     directory.mkdir(parents=True, exist_ok=True)
     update_metadata = dist / 'github/KryptonUpdate-win-x64.json'
@@ -159,6 +164,14 @@ def main():
     ui_binary = args.ui_root / 'out/build/windows/bin/Release/krypton_ui.dll'
     if digest(ui_binary) != ui_file['sha256']:
         raise ValueError('The release package does not contain the current Release UI DLL')
+    marker = Path(plan['source_package']).parent / 'payload/KryptonPackage.manifest'
+    verify(marker)
+    native_package = configparser.ConfigParser()
+    native_package.read(marker, encoding='ascii')
+    engine_version = native_package['Package']['EngineVersion']
+    if (native_package['Package']['Version'] != version or
+            re.fullmatch(r'\d+\.\d+\.\d+\.\d+', engine_version) is None):
+        raise ValueError('The native package marker does not match the release version')
     setup = dist / f'KryptonSetup-{version}-offline-x64.exe'
     verify(setup)
     setup_hash = digest(setup)
@@ -187,8 +200,9 @@ def main():
     sums.write_bytes(('\n'.join(f'{digest(directory / name)}  {name}' for name in sorted(assets)) + '\n').encode('ascii'))
     sign(sums, updater)
     assets += [sums.name, sums.name + '.sig']
-    record = {'repository': plan['repository'], 'tag': tag, 'prerelease': True,
-              'version': version, 'engine_version': '156.0.8078.47', 'assets': assets,
+    record = {'repository': plan['repository'], 'tag': tag,
+              'prerelease': args.release_type == 'prerelease',
+              'version': version, 'engine_version': engine_version, 'assets': assets,
               'notes': f'releases/{tag}.md', 'source_file_count': source_count,
               'krypton_ui_sha256': ui_file['sha256'], 'setup_sha256': setup_hash,
               'update_metadata_expires': datetime.fromtimestamp(signed['expires'], timezone.utc).isoformat()}

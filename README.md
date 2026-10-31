@@ -8,11 +8,11 @@ A Chromium-based browser with a native Windows interface, workspaces, and a side
 
 **[Download Krypton for Windows](https://github.com/perpetus/krypton-windows/releases)** · [Report a problem](https://github.com/perpetus/krypton-windows/issues/new/choose)
 
-This repository is the home for Krypton's Windows downloads and release notes. The first release is available for testing, so expect rough edges and keep a backup of important browser data.
+This repository is the home for Krypton's Windows downloads and release notes. The current release is available for testing, so expect rough edges and keep a backup of important browser data.
 
 ## Get started
 
-1. Open [Releases](https://github.com/perpetus/krypton-windows/releases) and download **`KryptonSetup-0.20.1.1-offline-x64.exe`**.
+1. Open [Releases](https://github.com/perpetus/krypton-windows/releases) and download **`KryptonSetup-0.20.3.1-offline-x64.exe`**.
 2. Close any open Krypton windows, then run setup and follow the on-screen steps.
 3. Open Krypton from the Start menu or desktop shortcut.
 
@@ -49,7 +49,7 @@ To uninstall, open **Windows Settings → Apps → Installed apps → Krypton �
 Download the setup's `.sha256` file alongside it. In PowerShell, run:
 
 ```powershell
-Get-FileHash .\KryptonSetup-0.20.1.1-offline-x64.exe -Algorithm SHA256
+Get-FileHash .\KryptonSetup-0.20.3.1-offline-x64.exe -Algorithm SHA256
 ```
 
 Compare the result with the checksum file. For cryptographic signature verification, see [Verify a download](docs/verify-downloads.md).
