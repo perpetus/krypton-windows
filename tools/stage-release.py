@@ -135,11 +135,12 @@ def main():
     parser.add_argument('--browser-root', type=Path, default=ROOT.parent / 'Krypton')
     parser.add_argument('--ui-root', type=Path, default=ROOT.parent / 'KryptonUI')
     parser.add_argument('--browser-stage-record', type=Path)
+    parser.add_argument('--dist-dir', type=Path)
     parser.add_argument('--release-type', choices=('prerelease', 'stable'), default='prerelease',
                         help='GitHub release classification; stable is visible to the automatic updater')
     args = parser.parse_args()
     updater = args.updater_root.resolve(strict=True)
-    dist = updater / 'out/dist'
+    dist = args.dist_dir.resolve(strict=True) if args.dist_dir else updater / 'out/dist'
     plan = json.loads((dist / 'github/release-assets.json').read_text(encoding='utf-8'))
     package = json.loads(Path(plan['source_package']).read_text(encoding='utf-8'))
     version = package['browser_version']
