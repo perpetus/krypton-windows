@@ -76,6 +76,7 @@ def snapshot(output, browser, ui, updater, version, inputs):
     records = []
     sources = list(git_sources(browser, Path('Krypton'), records, initial=True))
     sources += list(git_sources(ui, Path('KryptonUI'), records, initial=True))
+    sources += list(git_sources(ROOT, Path('KryptonWindows'), records, initial=True))
     for name in ('src', 'assets', 'resources', 'cmake', 'tools'):
         for path in sorted((updater / name).rglob('*')):
             relative = path.relative_to(updater)
@@ -133,6 +134,7 @@ def main():
     parser.add_argument('--updater-root', type=Path, default=ROOT.parent / 'KryptonUpdater')
     parser.add_argument('--browser-root', type=Path, default=ROOT.parent / 'Krypton')
     parser.add_argument('--ui-root', type=Path, default=ROOT.parent / 'KryptonUI')
+    parser.add_argument('--browser-stage-record', type=Path)
     parser.add_argument('--release-type', choices=('prerelease', 'stable'), default='prerelease',
                         help='GitHub release classification; stable is visible to the automatic updater')
     args = parser.parse_args()
@@ -191,9 +193,16 @@ def main():
             raise ValueError('Staged asset copy failed verification')
         assets.append(destination.name)
     source = directory / f'KryptonSource-{version}.zip'
-    source_count = snapshot(source, args.browser_root, args.ui_root, updater, version,
-                            {'setup_sha256': setup_hash, 'update_sha256': signed['full']['sha256'],
-                             'krypton_ui_sha256': ui_file['sha256']})
+    inputs = {'setup_sha256': setup_hash,
+              'update_sha256': signed['full']['sha256'],
+              'krypton_ui_sha256': ui_file['sha256']}
+    if args.browser_stage_record:
+        staging = json.loads(args.browser_stage_record.read_text(encoding='utf-8'))
+        if (staging['version'] != version or staging['engine_version'] != engine_version or
+                staging['krypton_ui_sha256'] != ui_file['sha256']):
+            raise ValueError('The browser staging record does not match this release')
+        inputs['browser_staging'] = staging
+    source_count = snapshot(source, args.browser_root, args.ui_root, updater, version, inputs)
     sign(source, updater)
     assets += [source.name, source.name + '.sig']
     sums = directory / 'SHA256SUMS'
