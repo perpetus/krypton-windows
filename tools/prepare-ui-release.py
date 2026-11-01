@@ -104,8 +104,10 @@ def stamp(path, previous, target):
             continue
         content = bytes(data[start:start + size])
         for encoding in ('ascii', 'utf-16le'):
-            old = (previous + '\0').encode(encoding)
-            new = (target + '\0').encode(encoding)
+            # Embedded assembly manifests use quoted version values rather
+            # than NUL-terminated strings. Update those dependencies as well.
+            old = previous.encode(encoding)
+            new = target.encode(encoding)
             changes += content.count(old)
             content = content.replace(old, new)
         data[start:start + size] = content
@@ -216,6 +218,23 @@ def main():
             result = stamp(path, previous, args.version)
             if result:
                 changed.append(result)
+    manifest = destination / f'{previous}.manifest'
+    if manifest.is_file():
+        content = manifest.read_bytes()
+        replacement = content
+        for encoding in ('ascii', 'utf-16le'):
+            replacement = replacement.replace(previous.encode(encoding),
+                                              args.version.encode(encoding))
+        if replacement == content:
+            raise ValueError('The versioned assembly manifest was not updated')
+        target = destination / f'{args.version}.manifest'
+        if target.exists():
+            raise ValueError('The new assembly manifest already exists')
+        target.write_bytes(replacement)
+        manifest.unlink()
+        changed.append({'name': target.name,
+                        'before_sha256': hashlib.sha256(content).hexdigest(),
+                        'after_sha256': digest(target)})
     for name in ('chrome.exe', 'chrome.dll', 'chrome_elf.dll'):
         file, product = file_versions(destination / name)
         if file != args.version or product != engine:
@@ -229,8 +248,12 @@ def main():
               'inputs': copies}
     (output / 'ui-release-inputs.json').write_text(
         json.dumps(record, indent=2) + '\n', encoding='utf-8')
-    print(json.dumps({key: value for key, value in record.items()
-                      if key != 'inputs'}, indent=2))
+    summary = {key: value for key, value in record.items()
+               if key not in ('inputs', 'restamped')}
+    summary['restamped'] = [{'name': item['name'],
+                            'replacements': item.get('replacements', 1)}
+                           for item in changed]
+    print(json.dumps(summary, indent=2))
 
 
 if __name__ == '__main__':
