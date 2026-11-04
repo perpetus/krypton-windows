@@ -24,6 +24,24 @@ The current release is for manual installer testing. Builds, archive integrity, 
 
 ## Later stable releases
 
+For UI maintenance without a Chromium rebuild, use `tools/prepare-ui-release.py`
+with a new four-part release marker. It copies the existing browser runtime,
+updates equal-length release strings and version resources, and verifies that
+executable code sections and Chromium's engine version are unchanged. The
+original browser output is preserved. The new UI DLL retains its independent
+KryptonUI version.
+
+```powershell
+python tools/prepare-ui-release.py --browser-dir D:/code/Krypton/build/src/out/Default --ui-dir D:/code/KryptonUI/out/build/windows/bin/Release --output-dir .release-staging/ui-0.20.3.3 --version 0.20.3.3
+pwsh ../KryptonUpdater/tools/build-offline.ps1 -BrowserDir .release-staging/ui-0.20.3.3/src/out/Default -OutputDir D:/code/KryptonUpdater/out/dist-ui-0.20.3.3
+python tools/stage-release.py --dist-dir D:/code/KryptonUpdater/out/dist-ui-0.20.3.3 --browser-stage-record .release-staging/ui-0.20.3.3/ui-release-inputs.json --release-type stable
+```
+
+Keep the signed metadata, native package marker, GitHub tag, and installer
+version aligned to the new release marker. Publish it as a regular release;
+the independent UI DLL version does not replace the updater's increasing
+release marker.
+
 Use `python tools/stage-release.py --release-type stable` to stage a release
 for the automatic updater. The default remains `prerelease` for manual setup
 testing. GitHub's latest-release endpoint excludes prereleases; a build meant
