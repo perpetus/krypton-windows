@@ -35,6 +35,7 @@ def sha256(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', required=True)
+    parser.add_argument('--title', help='GitHub release title')
     args = parser.parse_args()
     if not re.fullmatch(r'\d+\.\d+\.\d+\.\d+', args.version):
         parser.error('Expected a four-part release version')
@@ -67,7 +68,7 @@ def main():
     if any(release['tag_name'] == tag for release in releases):
         raise ValueError('This release tag already exists; inspect it before replacing assets')
     run('gh', 'release', 'create', tag, '--repo', REPOSITORY, '--draft',
-        '--target', head, '--title', f'Krypton {args.version} - Windows UI improvements',
+        '--target', head, '--title', args.title or f'Krypton {args.version} - Windows UI improvements',
         '--notes-file', notes)
     run('gh', 'release', 'upload', tag, '--repo', REPOSITORY, *assets)
     release = next(item for item in api(f'repos/{REPOSITORY}/releases?per_page=100')

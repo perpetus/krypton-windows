@@ -7,8 +7,8 @@ Only download Krypton from [this repository's Releases page](https://github.com/
 Download the setup and its `.sha256` file. In PowerShell:
 
 ```powershell
-Get-FileHash .\KryptonSetup-0.20.3.1-offline-x64.exe -Algorithm SHA256
-Get-Content .\KryptonSetup-0.20.3.1-offline-x64.exe.sha256
+Get-FileHash .\KryptonSetup-0.21.3.1-offline-x64.exe -Algorithm SHA256
+Get-Content .\KryptonSetup-0.21.3.1-offline-x64.exe.sha256
 ```
 
 The two hashes must match. A checksum detects damaged or changed downloads; the signature below verifies that the file was signed with Krypton's release key.
@@ -18,7 +18,7 @@ The two hashes must match. A checksum detects damaged or changed downloads; the 
 Download the file and its matching `.sig`. Use PowerShell 7 with a trusted copy of this repository:
 
 ```powershell
-pwsh ./tools/Verify-Download.ps1 -Path ./KryptonSetup-0.20.3.1-offline-x64.exe
+pwsh ./tools/Verify-Download.ps1 -Path ./KryptonSetup-0.21.3.1-offline-x64.exe
 ```
 
 The script reads the pinned public key in [security/release-public-key.json](../security/release-public-key.json), verifies ECDSA P-256/SHA-256, and prints a success message only when verification succeeds. It also works with `SHA256SUMS` and the update metadata. Do not edit signed metadata or signatures.
