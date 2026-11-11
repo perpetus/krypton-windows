@@ -143,6 +143,8 @@ def main():
     parser.add_argument('--updater-root', type=Path, default=ROOT.parent / 'KryptonUpdater')
     parser.add_argument('--browser-root', type=Path, default=ROOT.parent / 'Krypton')
     parser.add_argument('--ui-root', type=Path, default=ROOT.parent / 'KryptonUI')
+    parser.add_argument('--ui-binary', type=Path,
+                        help='Release UI DLL when public sources and build outputs are separate')
     parser.add_argument('--upstream-root', type=Path,
                         help='Pinned upstream checkout when the browser submodule is not populated')
     parser.add_argument('--browser-stage-record', type=Path)
@@ -175,7 +177,7 @@ def main():
         raise ValueError('Update archive size/hash verification failed')
     runtime = json.loads((Path(plan['source_package']).parent / 'chromium-files.manifest.json').read_text(encoding='utf-8'))
     ui_file = next(item for item in runtime['files'] if item['path'] == f'{version}/krypton_ui.dll')
-    ui_binary = args.ui_root / 'out/build/windows/bin/Release/krypton_ui.dll'
+    ui_binary = args.ui_binary or args.ui_root / 'out/build/windows/bin/Release/krypton_ui.dll'
     if digest(ui_binary) != ui_file['sha256']:
         raise ValueError('The release package does not contain the current Release UI DLL')
     marker = Path(plan['source_package']).parent / 'payload/KryptonPackage.manifest'
