@@ -64,6 +64,10 @@ def main():
                  f'KryptonSource-{args.version}.zip'):
         run('pwsh', '-NoProfile', '-File', ROOT / 'tools/Verify-Download.ps1',
             '-Path', directory / name)
+    for name in record['assets']:
+        if name.endswith('-web-x64.exe'):
+            run('pwsh', '-NoProfile', '-File', ROOT / 'tools/Verify-Download.ps1',
+                '-Path', directory / name)
     releases = api(f'repos/{REPOSITORY}/releases?per_page=100')
     if any(release['tag_name'] == tag for release in releases):
         raise ValueError('This release tag already exists; inspect it before replacing assets')

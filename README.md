@@ -27,6 +27,14 @@ Krypton is an independent project in active development. Its browser and
 interface are developed in the [Krypton](https://github.com/perpetus/Krypton)
 and [KryptonUI](https://github.com/perpetus/KryptonUI) repositories.
 
+## Get Krypton
+
+- [Web installer](https://github.com/perpetus/krypton-windows/releases/latest/download/KryptonSetup-0.21.3.3-web-x64.exe): a smaller download that fetches the current browser during setup.
+- [Offline installer](https://github.com/perpetus/krypton-windows/releases/latest/download/KryptonSetup-0.21.3.3-offline-x64.exe): includes everything needed to install without an internet connection.
+
+Close any open Krypton windows before installing. Existing browser profiles are
+kept when updating.
+
 [Download Krypton for Windows](https://github.com/perpetus/krypton-windows/releases/latest)
  · [All releases](https://github.com/perpetus/krypton-windows/releases)
  · [Report a problem](https://github.com/perpetus/krypton-windows/issues/new/choose)

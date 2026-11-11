@@ -39,7 +39,10 @@ try {
     '-DKR_OFFLINE_PAYLOAD=', '-DKR_OFFLINE_MANIFEST=', '-DKR_OFFLINE_SIGNATURE=',
     '-DKR_ALLOW_UNSIGNED=OFF', "-DKR_PRODUCT_VERSION=$version")
   Invoke-Checked 'cmake' @('--build', 'out/build/windows', '--config', 'Release',
-    '--target', 'KryptonSetup', 'KryptonUpdater', 'KryptonUninstaller')
+    '--target', 'KryptonSetup', 'KryptonWebSetup', 'KryptonUpdater', 'KryptonUninstaller')
+  $web = @('-NoProfile', 'tools/build-web.ps1', '-OutputDir', $output, '-SkipBuild')
+  if ($KeyPath) { $web += @('-KeyPath', $KeyPath) }
+  Invoke-Checked 'pwsh' $web
   $prerequisites = Join-Path $work 'prerequisites'
   Invoke-Checked 'pwsh' @('-NoProfile', 'tools/prepare-prerequisites.ps1',
     '-BrowserDir', $browser, '-OutputDir', $prerequisites, '-KryptonUiDir', $KryptonUiDir)
@@ -76,7 +79,7 @@ try {
   Invoke-Checked 'python' $release
   $hash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
   "$hash  $([IO.Path]::GetFileName($setup))" | Set-Content -LiteralPath "$setup.sha256" -Encoding ascii
-  [pscustomobject]@{ Installer=$setup; Bytes=(Get-Item -LiteralPath $setup).Length;
+  [pscustomobject]@{ Installer=$setup; WebInstaller=(Join-Path $output "KryptonSetup-$version-web-x64.exe"); Bytes=(Get-Item -LiteralPath $setup).Length;
     BrowserVersion=$version; Files=$package.file_count; VerificationDirectory=$work }
 } finally {
   Pop-Location

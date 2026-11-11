@@ -13,8 +13,8 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRS = {'.git', '.agents', '.cache', '.deps', '.serena', 'out', 'reference',
-             'node_modules', '__pycache__'}
+SKIP_DIRS = {'.git', '.agents', '.cache', '.codex', '.deps', '.serena', '.t3',
+             'docs', 'out', 'reference', 'rtk', 'node_modules', '__pycache__'}
 SKIP_SUFFIXES = {'.dpapi', '.pfx', '.key', '.pem', '.pdb', '.obj', '.lib', '.exp',
                  '.log', '.exe', '.dll', '.msi', '.7z', '.zip'}
 
@@ -72,12 +72,23 @@ def git_sources(directory, prefix, records, initial=False):
             yield path, prefix / relative
 
 
-def snapshot(output, browser, ui, updater, version, inputs):
+def snapshot(output, browser, ui, updater, version, inputs, upstream=None):
     records = []
     sources = list(git_sources(browser, Path('Krypton'), records, initial=True))
+    if upstream is not None:
+        if (browser / 'upstream/helium-windows/.git').exists():
+            raise ValueError('The browser already has a populated upstream checkout')
+        expected = run('git', '-C', browser, 'rev-parse',
+                       'HEAD:upstream/helium-windows', capture=True).decode().strip()
+        actual = run('git', '-C', upstream, 'rev-parse',
+                     'HEAD', capture=True).decode().strip()
+        if expected != actual:
+            raise ValueError('The supplied upstream checkout differs from the pinned revision')
+        sources += list(git_sources(upstream, Path('Krypton/upstream/helium-windows'),
+                                    records))
     sources += list(git_sources(ui, Path('KryptonUI'), records, initial=True))
     sources += list(git_sources(ROOT, Path('KryptonWindows'), records, initial=True))
-    for name in ('src', 'assets', 'resources', 'cmake', 'tools'):
+    for name in ('src', 'assets', 'resources', 'cmake', 'tools', 'licenses', 'tests'):
         for path in sorted((updater / name).rglob('*')):
             relative = path.relative_to(updater)
             if safe_source(path, relative):
@@ -86,8 +97,6 @@ def snapshot(output, browser, ui, updater, version, inputs):
         path = updater / name
         if path.is_file():
             sources.append((path, Path('KryptonUpdater') / name))
-    for path in sorted((updater / 'docs').rglob('*.md')):
-        sources.append((path, Path('KryptonUpdater') / path.relative_to(updater)))
     if not sources:
         raise ValueError('No release sources were found')
     inventory = []
@@ -134,6 +143,8 @@ def main():
     parser.add_argument('--updater-root', type=Path, default=ROOT.parent / 'KryptonUpdater')
     parser.add_argument('--browser-root', type=Path, default=ROOT.parent / 'Krypton')
     parser.add_argument('--ui-root', type=Path, default=ROOT.parent / 'KryptonUI')
+    parser.add_argument('--upstream-root', type=Path,
+                        help='Pinned upstream checkout when the browser submodule is not populated')
     parser.add_argument('--browser-stage-record', type=Path)
     parser.add_argument('--dist-dir', type=Path)
     parser.add_argument('--release-type', choices=('prerelease', 'stable'), default='prerelease',
@@ -181,7 +192,12 @@ def main():
     checksum = Path(str(setup) + '.sha256').read_text(encoding='ascii').split()[0]
     if setup_hash != checksum:
         raise ValueError('The setup checksum sidecar does not match')
-    sources = [setup, Path(str(setup) + '.sig'), Path(str(setup) + '.sha256')]
+    web = dist / f'KryptonSetup-{version}-web-x64.exe'
+    verify(web)
+    if Path(str(web) + '.sha256').read_text(encoding='ascii').split()[0] != digest(web):
+        raise ValueError('The web setup checksum sidecar does not match')
+    sources = [setup, Path(str(setup) + '.sig'), Path(str(setup) + '.sha256'),
+               web, Path(str(web) + '.sig'), Path(str(web) + '.sha256')]
     for name in plan['assets']:
         if Path(name).name != name:
             raise ValueError('Release asset names must be plain filenames')
@@ -202,8 +218,12 @@ def main():
         if (staging['version'] != version or staging['engine_version'] != engine_version or
                 staging['krypton_ui_sha256'] != ui_file['sha256']):
             raise ValueError('The browser staging record does not match this release')
-        inputs['browser_staging'] = staging
-    source_count = snapshot(source, args.browser_root, args.ui_root, updater, version, inputs)
+        inputs['browser_staging'] = {
+            key: staging[key] for key in ('version', 'base_version', 'engine_version',
+                                          'krypton_ui_sha256', 'restamped') if key in staging
+        }
+    source_count = snapshot(source, args.browser_root, args.ui_root, updater, version,
+                            inputs, args.upstream_root)
     sign(source, updater)
     assets += [source.name, source.name + '.sig']
     sums = directory / 'SHA256SUMS'
