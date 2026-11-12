@@ -1,0 +1,191 @@
+name: Build hosted Windows stage
+on:
+  workflow_call:
+    inputs:
+      browser-ref:
+        type: string
+        required: true
+      ui-commit:
+        type: string
+        required: true
+      stage:
+        type: number
+        required: true
+      checkpoint:
+        type: string
+        default: ''
+    outputs:
+      finished:
+        value: ${{ jobs.build.outputs.finished }}
+      checkpoint:
+        value: ${{ jobs.build.outputs.checkpoint }}
+      browser-commit:
+        value: ${{ jobs.build.outputs.browser-commit }}
+permissions:
+  contents: read
+  actions: write
+env:
+  KRYPTON_SOURCE_ROOT: C:/krypton
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 360
+    outputs:
+      finished: ${{ steps.compile.outputs.finished }}
+      checkpoint: ${{ steps.checkpoint-name.outputs.name }}
+      browser-commit: ${{ steps.revision.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: perpetus/krypton-windows
+          ref: ${{ github.sha }}
+          path: automation
+          persist-credentials: false
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: perpetus/Krypton
+          ref: ${{ inputs.browser-ref }}
+          submodules: recursive
+          path: browser
+          persist-credentials: false
+      - uses: ./automation/.github/actions/prepare-windows
+      - name: Record exact source commit
+        id: revision
+        shell: pwsh
+        run: |
+          $commit = git -C C:/krypton rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read browser source revision.' }
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+      - name: Select predecessor or saved failure checkpoint
+        id: restore
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_CHECKPOINT: ${{ inputs.checkpoint }}
+          STAGE: ${{ inputs.stage }}
+        run: |
+          $name = $env:PREVIOUS_CHECKPOINT
+          if ([int]$env:GITHUB_RUN_ATTEMPT -gt 1) {
+            $prefix = "krypton-build-state-stage-$env:STAGE-"
+            $pages = gh api --paginate --slurp "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID/artifacts?per_page=100" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw 'Could not inspect saved checkpoints.' }
+            $saved = $pages.artifacts | Where-Object { $_.name.StartsWith($prefix) -and -not $_.expired } | Sort-Object created_at -Descending | Select-Object -First 1
+            if ($saved) { $name = $saved.name }
+          }
+          "name=$name" >> $env:GITHUB_OUTPUT
+      - name: Restore previous progress
+        if: steps.restore.outputs.name != ''
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: ${{ steps.restore.outputs.name }}
+          path: ${{ runner.temp }}/build-state
+      - name: Unpack and verify checkpoint before graph access
+        if: steps.restore.outputs.name != ''
+        shell: pwsh
+        env:
+          STATE_ARCHIVE: ${{ runner.temp }}/build-state/checkpoint.zip
+        run: |
+          New-Item -ItemType Directory -Path C:/krypton/build -Force | Out-Null
+          7z x $env:STATE_ARCHIVE -oC:/krypton/build -y -bsp0
+          if ($LASTEXITCODE -ne 0) { throw 'Checkpoint extraction failed.' }
+          python "$env:GITHUB_WORKSPACE/automation/tools/ci/checkpoint.py" verify
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: krypton-ui-runtime
+          path: ${{ runner.temp }}/ui-runtime
+      - name: Compile production targets for this stage
+        id: compile
+        shell: pwsh
+        env:
+          UI_COMMIT: ${{ inputs.ui-commit }}
+          RUNTIME_DIRECTORY: ${{ runner.temp }}/ui-runtime
+        run: |
+          New-Item -ItemType Directory -Path C:/krypton/build/ci -Force | Out-Null
+          $arguments = @("$env:GITHUB_WORKSPACE/automation/tools/ci/build_windows.py", '--runtime', $env:RUNTIME_DIRECTORY, '--ui-commit', $env:UI_COMMIT, '--stage-started-at', $env:KRYPTON_STAGE_STARTED_AT)
+          if (-not (Test-Path -LiteralPath C:/krypton/build/src)) { $arguments += '--initialize' }
+          python @arguments 2>&1 | Tee-Object -FilePath "C:/krypton/build/ci/stage-$env:GITHUB_RUN_ATTEMPT.log"
+          $result = $LASTEXITCODE
+          "finished=$($result -eq 0)".ToLowerInvariant() >> $env:GITHUB_OUTPUT
+          if ($result -notin @(0, 42)) { throw "Build failed ($result); recovery checkpoint will still be uploaded." }
+      - name: Upload completed browser distribution
+        id: distribution
+        if: steps.compile.outputs.finished == 'true'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: krypton-windows-x64-build
+          path: C:/krypton/build/ci/browser-payload-${{ github.run_id }}-${{ github.run_attempt }}/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Name this stage's recovery checkpoint
+        id: checkpoint-name
+        if: always()
+        shell: pwsh
+        env:
+          STAGE: ${{ inputs.stage }}
+        run: '"name=krypton-build-state-stage-$env:STAGE-$env:GITHUB_RUN_ATTEMPT" >> $env:GITHUB_OUTPUT'
+      - name: Save progress on timeout or failure
+        if: always() && steps.distribution.outcome != 'success'
+        shell: pwsh
+        env:
+          CHECKPOINT_ARCHIVE: ${{ runner.temp }}/checkpoint.zip
+        run: |
+          if (-not (Test-Path -LiteralPath C:/krypton/build/src)) { exit 0 }
+          python "$env:GITHUB_WORKSPACE/automation/tools/ci/checkpoint.py" save
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Push-Location C:/krypton/build
+          try {
+            $inputs = @('src', 'checkpoint-state.json')
+            if (Test-Path -LiteralPath .krypton_state.json) { $inputs += '.krypton_state.json' }
+            7z a -tzip $env:CHECKPOINT_ARCHIVE @inputs -mx=3 -mtc=on -mtm=on -bsp0
+            if ($LASTEXITCODE -ne 0) { throw 'Checkpoint archive failed; build logs remain available.' }
+            7z t $env:CHECKPOINT_ARCHIVE -bsp0
+            if ($LASTEXITCODE -ne 0) { throw 'Checkpoint archive integrity verification failed.' }
+          } finally { Pop-Location }
+      - name: Upload saved progress
+        id: progress
+        if: always() && steps.distribution.outcome != 'success'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: ${{ steps.checkpoint-name.outputs.name }}
+          path: ${{ runner.temp }}/checkpoint.zip
+          compression-level: 0
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Retain the two newest verified checkpoints
+        if: success() && steps.progress.outputs.artifact-id != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pages = gh api --paginate --slurp "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID/artifacts?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect checkpoint retention.' }
+          $checkpoints = @($pages.artifacts | Where-Object { $_.name.StartsWith('krypton-build-state-stage-') -and -not $_.expired } | Sort-Object created_at -Descending)
+          foreach ($old in ($checkpoints | Select-Object -Skip 2)) {
+            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$($old.id)"
+            if ($LASTEXITCODE -ne 0) { throw 'Could not prune a superseded checkpoint.' }
+          }
+      - name: Record stage outcome and recovery artifact
+        if: always()
+        shell: pwsh
+        env:
+          STAGE: ${{ inputs.stage }}
+          FINISHED: ${{ steps.compile.outputs.finished }}
+          CHECKPOINT_ID: ${{ steps.progress.outputs.artifact-id }}
+        run: |
+          "### Chromium stage $env:STAGE" >> $env:GITHUB_STEP_SUMMARY
+          "Compilation finished: $env:FINISHED" >> $env:GITHUB_STEP_SUMMARY
+          if ($env:CHECKPOINT_ID) {
+            "[Saved progress](https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID/artifacts/$env:CHECKPOINT_ID). Rerun failed jobs to resume this stage." >> $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Upload stage logs and recovery identity
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: chromium-stage-${{ inputs.stage }}-logs-${{ github.run_attempt }}
+          path: |
+            C:/krypton/build/ci/*.log
+            C:/krypton/build/checkpoint-state.json
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,36 @@
+name: Prepare hosted Windows build
+description: Set up the same source path, SDK and native Ninja for every stage
+runs:
+  using: composite
+  steps:
+    - name: Record stage start
+      shell: pwsh
+      run: '"KRYPTON_STAGE_STARTED_AT=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())" >> $env:GITHUB_ENV'
+    - uses: actions/setup-python@v7.1.0
+      with:
+        python-version: '3.14'
+    - uses: perpetus/KryptonUI/.github/actions/setup-ninja@main
+    - name: Ensure pinned Windows SDK
+      shell: pwsh
+      run: |
+        if (Test-Path "${env:ProgramFiles(x86)}/Windows Kits/10/Include/10.0.28000.0/um/Windows.h") { exit 0 }
+        $setup = Join-Path $env:RUNNER_TEMP 'winsdksetup.exe'
+        Invoke-WebRequest 'https://go.microsoft.com/fwlink/?linkid=2370315' -OutFile $setup
+        $signature = Get-AuthenticodeSignature -FilePath $setup
+        if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') { throw 'Windows SDK installer signature is invalid.' }
+        $process = Start-Process -FilePath $setup -ArgumentList '/quiet', '/norestart', '/features', '+' -WindowStyle Hidden -Wait -PassThru
+        if ($process.ExitCode -notin @(0, 3010)) { throw "Windows SDK installation failed: $($process.ExitCode)" }
+    - name: Install preparation dependencies
+      shell: pwsh
+      run: |
+        python -m pip install requests Pillow
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - name: Copy source to a stable hosted path
+      shell: pwsh
+      env:
+        SOURCE_DIRECTORY: ${{ github.workspace }}/browser
+      run: |
+        if (Test-Path -LiteralPath 'C:/krypton') { throw 'The hosted source path already exists; preserve it.' }
+        robocopy $env:SOURCE_DIRECTORY C:/krypton /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS
+        if ($LASTEXITCODE -gt 7) { throw 'Could not stage the source checkout.' }
+        exit 0

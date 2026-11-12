@@ -1,0 +1,117 @@
+name: Build and release Krypton for Windows
+on:
+  workflow_dispatch:
+    inputs:
+      browser-ref:
+        description: Browser source revision
+        type: string
+        default: main
+      ui-ref:
+        description: Native UI source revision
+        type: string
+        default: main
+      updater-ref:
+        description: Installer/updater source revision
+        type: string
+        default: main
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: krypton-windows-stable-release
+  cancel-in-progress: false
+jobs:
+  source:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      browser: ${{ steps.resolve.outputs.browser }}
+      ui: ${{ steps.resolve.outputs.ui }}
+      updater: ${{ steps.resolve.outputs.updater }}
+      version: ${{ steps.resolve.outputs.version }}
+      base-version: ${{ steps.resolve.outputs.base-version }}
+    steps:
+      - name: Pin source revisions and check release version
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BROWSER_REF: ${{ inputs.browser-ref }}
+          UI_REF: ${{ inputs.ui-ref }}
+          UPDATER_REF: ${{ inputs.updater-ref }}
+        shell: python
+        run: |
+          import base64, json, os, re, subprocess
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+          revisions = {}
+          for name, repository, value in [('browser', 'Krypton', 'BROWSER_REF'), ('ui', 'KryptonUI', 'UI_REF'), ('updater', 'KryptonUpdater', 'UPDATER_REF')]:
+              ref = os.environ[value]
+              if not re.fullmatch(r'[A-Za-z0-9._/-]+', ref) or '..' in ref:
+                  raise SystemExit('Invalid source revision')
+              revisions[name] = api(f'repos/perpetus/{repository}/commits/{ref}')['sha']
+          marker = api('repos/perpetus/Krypton/contents/version.txt?ref=' + revisions['browser'])
+          version = base64.b64decode(marker['content']).decode().strip()
+          if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', version):
+              raise SystemExit('Invalid release marker')
+          releases = api('repos/perpetus/krypton-windows/releases?per_page=100')
+          if any(item['tag_name'] == 'v' + version for item in releases):
+              raise SystemExit('This release already exists; existing assets will not be replaced')
+          latest = api('repos/perpetus/krypton-windows/releases/latest')['tag_name'].removeprefix('v')
+          if tuple(map(int, version.split('.'))) <= tuple(map(int, latest.split('.'))):
+              raise SystemExit('The release marker must increase')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
+              for name, sha in revisions.items(): stream.write(f'{name}={sha}\n')
+              stream.write(f'version={version}\n')
+              stream.write(f'base-version={latest}\n')
+  build:
+    needs: source
+    permissions:
+      contents: read
+      actions: write
+    uses: ./.github/workflows/build-steps.yml
+    with:
+      browser-ref: ${{ needs.source.outputs.browser }}
+      ui-ref: ${{ needs.source.outputs.ui }}
+      updater-ref: ${{ needs.source.outputs.updater }}
+  package:
+    needs: [source, build]
+    uses: perpetus/KryptonUpdater/.github/workflows/package.yml@main
+    with:
+      browser-commit: ${{ needs.build.outputs.browser-commit }}
+      updater-ref: ${{ needs.source.outputs.updater }}
+      base-version: ${{ needs.source.outputs.base-version }}
+  publish:
+    needs: [source, package]
+    runs-on: windows-2025-vs2026
+    environment: stable-release
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: krypton-release-assets-${{ needs.source.outputs.version }}
+          path: release-assets/v${{ needs.source.outputs.version }}
+      - name: Verify uploaded assets and publish the stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.source.outputs.version }}
+        shell: pwsh
+        run: |
+          python tools/publish-release.py --version $env:VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain publication verification
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: stable-release-verification-${{ github.run_attempt }}
+          path: release-assets/v${{ needs.source.outputs.version }}/published-release.json
+          if-no-files-found: ignore
+          retention-days: 30

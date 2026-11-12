@@ -1,0 +1,200 @@
+name: Build Windows packages in stages
+on:
+  workflow_call:
+    inputs:
+      browser-ref:
+        type: string
+        required: true
+      ui-ref:
+        type: string
+        required: true
+      updater-ref:
+        type: string
+        required: true
+    outputs:
+      browser-commit:
+        value: ${{ jobs.browser.outputs.commit }}
+      ui-commit:
+        value: ${{ jobs.ui.outputs.commit }}
+permissions:
+  contents: read
+  actions: write
+jobs:
+  ui:
+    uses: perpetus/KryptonUI/.github/workflows/build.yml@main
+    with:
+      ref: ${{ inputs.ui-ref }}
+  installer-preflight:
+    needs: ui
+    uses: perpetus/KryptonUpdater/.github/workflows/preflight.yml@main
+    with:
+      ref: ${{ inputs.updater-ref }}
+
+  build-1:
+    needs: [ui, installer-preflight]
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 1
+
+  build-2:
+    needs: [ui, build-1]
+    if: needs.build-1.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 2
+      checkpoint: ${{ needs.build-1.outputs.checkpoint }}
+
+  build-3:
+    needs: [ui, build-2]
+    if: needs.build-2.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 3
+      checkpoint: ${{ needs.build-2.outputs.checkpoint }}
+
+  build-4:
+    needs: [ui, build-3]
+    if: needs.build-3.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 4
+      checkpoint: ${{ needs.build-3.outputs.checkpoint }}
+
+  build-5:
+    needs: [ui, build-4]
+    if: needs.build-4.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 5
+      checkpoint: ${{ needs.build-4.outputs.checkpoint }}
+
+  build-6:
+    needs: [ui, build-5]
+    if: needs.build-5.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 6
+      checkpoint: ${{ needs.build-5.outputs.checkpoint }}
+
+  build-7:
+    needs: [ui, build-6]
+    if: needs.build-6.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 7
+      checkpoint: ${{ needs.build-6.outputs.checkpoint }}
+
+  build-8:
+    needs: [ui, build-7]
+    if: needs.build-7.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 8
+      checkpoint: ${{ needs.build-7.outputs.checkpoint }}
+
+  build-9:
+    needs: [ui, build-8]
+    if: needs.build-8.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 9
+      checkpoint: ${{ needs.build-8.outputs.checkpoint }}
+
+  build-10:
+    needs: [ui, build-9]
+    if: needs.build-9.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 10
+      checkpoint: ${{ needs.build-9.outputs.checkpoint }}
+
+  build-11:
+    needs: [ui, build-10]
+    if: needs.build-10.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 11
+      checkpoint: ${{ needs.build-10.outputs.checkpoint }}
+
+  build-12:
+    needs: [ui, build-11]
+    if: needs.build-11.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 12
+      checkpoint: ${{ needs.build-11.outputs.checkpoint }}
+
+  build-13:
+    needs: [ui, build-12]
+    if: needs.build-12.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 13
+      checkpoint: ${{ needs.build-12.outputs.checkpoint }}
+
+  build-14:
+    needs: [ui, build-13]
+    if: needs.build-13.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 14
+      checkpoint: ${{ needs.build-13.outputs.checkpoint }}
+
+  build-15:
+    needs: [ui, build-14]
+    if: needs.build-14.outputs.finished == 'false'
+    uses: ./.github/workflows/build-stage.yml
+    with:
+      browser-ref: ${{ inputs.browser-ref }}
+      ui-commit: ${{ needs.ui.outputs.commit }}
+      stage: 15
+      checkpoint: ${{ needs.build-14.outputs.checkpoint }}
+
+  browser:
+    needs: [build-1, build-2, build-3, build-4, build-5, build-6, build-7, build-8, build-9, build-10, build-11, build-12, build-13, build-14, build-15]
+    if: ${{ !cancelled() && !failure() }}
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.finished.outputs.commit }}
+    steps:
+      - name: Require a completed production build
+        id: finished
+        env:
+          STAGES: ${{ toJSON(needs) }}
+        shell: python
+        run: |
+          import json, os
+          stages = json.loads(os.environ['STAGES'])
+          completed = [stage for stage in stages.values() if stage['outputs'].get('finished') == 'true']
+          if len(completed) != 1:
+              raise SystemExit('The available stages did not finish. Saved checkpoints and logs are retained.')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
+              stream.write('commit=' + completed[0]['outputs']['browser-commit'] + '\n')

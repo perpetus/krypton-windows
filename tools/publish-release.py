@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,19 +91,27 @@ def main():
     print(f'Verified size and SHA-256 for all {len(local)} uploaded assets.', flush=True)
     published = api(f'repos/{REPOSITORY}/releases/{release["id"]}',
                     {'draft': False, 'prerelease': False, 'make_latest': 'true'})
-    latest = api(f'repos/{REPOSITORY}/releases/latest')
-    if latest['tag_name'] != tag or latest['draft'] or latest['prerelease']:
-        raise ValueError('The new release is not visible as the latest stable release')
+    for attempt in range(6):
+        latest = api(f'repos/{REPOSITORY}/releases/latest')
+        if latest['tag_name'] == tag and not latest['draft'] and not latest['prerelease']:
+            break
+        if attempt == 5:
+            raise ValueError('The new release is not visible as the latest stable release')
+        time.sleep(min(15, 2 ** attempt))
     check = directory / 'remote-check'
     check.mkdir(exist_ok=True)
     for name in ('KryptonUpdate-win-x64.json', 'KryptonUpdate-win-x64.json.sig'):
         request = urllib.request.Request(
             f'https://github.com/{REPOSITORY}/releases/latest/download/{name}',
             headers={'User-Agent': 'KryptonReleaseVerification/1.0'})
-        with urllib.request.urlopen(request, timeout=120) as response:
-            contents = response.read(2 * 1024 * 1024)
-        if contents != (directory / name).read_bytes():
-            raise ValueError(f'The public latest download does not match: {name}')
+        for attempt in range(6):
+            with urllib.request.urlopen(request, timeout=120) as response:
+                contents = response.read(2 * 1024 * 1024)
+            if contents == (directory / name).read_bytes():
+                break
+            if attempt == 5:
+                raise ValueError(f'The public latest download does not match: {name}')
+            time.sleep(min(15, 2 ** attempt))
         (check / name).write_bytes(contents)
     run('pwsh', '-NoProfile', '-File', ROOT / 'tools/Verify-Download.ps1',
         '-Path', check / 'KryptonUpdate-win-x64.json')

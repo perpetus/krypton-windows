@@ -97,6 +97,10 @@ def snapshot(output, browser, ui, updater, version, inputs, upstream=None):
         path = updater / name
         if path.is_file():
             sources.append((path, Path('KryptonUpdater') / name))
+    for name in ('LICENSE', 'CREDITS.md', '.gitattributes'):
+        path = updater / name
+        if path.is_file():
+            sources.append((path, Path('KryptonUpdater') / name))
     if not sources:
         raise ValueError('No release sources were found')
     inventory = []
