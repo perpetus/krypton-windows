@@ -211,6 +211,7 @@ def main():
                     dirs_exist_ok=True)
     controlled = {'chrome.exe', 'chrome.dll', 'chrome_elf.dll', 'chrome_proxy.exe',
                   'setup.exe', 'elevation_service.exe', 'notification_helper.exe',
+                  'elevated_tracing_service.exe', 'chrome_pwa_launcher.exe',
                   'eventlog_provider.dll', 'chrome_wer.dll', 'chromedriver.exe'}
     changed = []
     for path in sorted(destination.iterdir()):

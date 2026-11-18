@@ -87,6 +87,11 @@ def stage_browser_payload(output, report):
         'chrome.exe', 'chromedriver.exe', 'setup.exe', 'mini_installer.exe',
         'zucchini.exe', 'KryptonPatch.exe'))
     selected.update(output / relative for relative in ui_runtime.RUNTIME_FILES)
+    for component in ('krypton_bergamot', 'krypton_moonshine', 'krypton_onnxruntime'):
+        notices = layout.SOURCE_TREE / 'third_party' / component
+        for pattern in ('LICENSE', 'README.chromium', 'ThirdPartyNotices.txt',
+                        'Privacy.md', 'notices/*/LICENSE', 'notices/*/README.chromium'):
+            selected.update(path for path in notices.glob(pattern) if path.is_file())
     selected.add(rules_file)
     selected.add(layout.SOURCE_TREE / 'LICENSE')
     files = {}

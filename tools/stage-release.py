@@ -14,7 +14,8 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_DIRS = {'.git', '.agents', '.cache', '.codex', '.deps', '.serena', '.t3',
-             'docs', 'out', 'reference', 'rtk', 'node_modules', '__pycache__'}
+             'docs', 'out', 'reference', 'rtk', 'node_modules', '__pycache__',
+             'ui-before'}
 SKIP_SUFFIXES = {'.dpapi', '.pfx', '.key', '.pem', '.pdb', '.obj', '.lib', '.exp',
                  '.log', '.exe', '.dll', '.msi', '.7z', '.zip'}
 
