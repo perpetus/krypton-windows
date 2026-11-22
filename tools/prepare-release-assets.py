@@ -201,7 +201,7 @@ def ninja_preflight(graph, *, fresh=False):
     return ninja, cmake
 
 
-def build_installer_targets(updater, graph, release, logs, label, targets,
+def build_installer_targets(updater, graph, release, logs, label, targets, patcher,
                             package=None, *, initialize=False):
     fresh = not graph.exists()
     if fresh:
@@ -212,7 +212,7 @@ def build_installer_targets(updater, graph, release, logs, label, targets,
     else:
         ninja, cmake = ninja_preflight(graph)
         shutil.copy2(graph / 'CMakeCache.txt', logs / f'{label}-cache-before.txt')
-    settings = [f'-DKR_PRODUCT_VERSION={release}',
+    settings = [f'-DKR_PRODUCT_VERSION={release}', f'-DKR_ZUCCHINI_EXECUTABLE:FILEPATH={patcher}',
                 f'-DKR_REQUIRE_OFFLINE:BOOL={"ON" if package else "OFF"}']
     for option, field in (('PAYLOAD', 'archive'), ('MANIFEST', 'manifest'),
                           ('SIGNATURE', 'manifest_signature')):
@@ -442,6 +442,7 @@ def prepare(args):
         require(stamp.file_versions(staged / 'chrome.exe') == (release, engine), 'Stamped browser version mismatch')
     build_installer_targets(updater, online, release, logs, 'online',
                             ('KryptonWebSetup', 'KryptonUpdater', 'KryptonUninstaller'),
+                            browser / 'KryptonPatch.exe',
                             initialize=args.initialize_updater_graphs)
     helpers = work / 'helpers'
     helpers.mkdir()
@@ -466,7 +467,8 @@ def prepare(args):
         require(stamp.file_versions(file)[0] == release, f'Wrong versioned helper: {name}')
     verify_native_inventory(work, native_base, info['version'], release, runtime, args.allow_removed)
     build_installer_targets(updater, offline, release, logs, 'offline', ('KryptonSetup',),
-                            package, initialize=args.initialize_updater_graphs)
+                            browser / 'KryptonPatch.exe', package,
+                            initialize=args.initialize_updater_graphs)
 
     built = (('offline', offline / 'bin/Release/KryptonSetup.exe'),
              ('web', online / 'bin/Release/KryptonWebSetup.exe'))
