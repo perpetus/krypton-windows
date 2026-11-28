@@ -24,7 +24,7 @@ PRIVATE_CONTENT = {
     'private key': re.compile(rb'-----BEGIN [A-Z ]*PRIVATE KEY-----'),
     'access token': re.compile(rb'gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sntry[ush]_[A-Za-z0-9_-]{25,}'),
     'local checkout path': re.compile(rb'(?i)(?<![a-z0-9])[a-z]:[\\/]+code[\\/]'),
-    'local user path': re.compile(rb'(?i)(?:[a-z]:[\\/]+users[\\/]+|/ho'
+    'local user path': re.compile(rb'(?i)(?:[a-z]:[\\/]+users[\\/]+|(?<![\w.%-])/ho'
                                   rb'me/)(?!(?:public|preview)[\\/])[^\\/\s]+[\\/]'),
 }
 

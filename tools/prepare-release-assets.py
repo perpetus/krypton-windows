@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import zipfile
 
@@ -88,6 +89,15 @@ def asset_names(update):
     return set(names)
 
 
+def verify_payload_setup(archive, release):
+    with tempfile.TemporaryDirectory(prefix='krypton-setup-version-') as folder:
+        subprocess.run(['7z', 'e', str(archive), 'setup.exe', f'-o{folder}', '-y'],
+                       check=True, stdout=subprocess.DEVNULL)
+        setup = Path(folder) / 'setup.exe'
+        require(stamp.file_versions(setup)[0] == release,
+                f'Packaged setup.exe must carry file version {release}')
+
+
 def verify_upload_set(directory):
     update_path = directory / METADATA
     stage.verify(update_path)
@@ -128,6 +138,7 @@ def verify_upload_set(directory):
         require(checksums[item['name']] == item['sha256']
                 and (directory / item['name']).stat().st_size == item['size'],
                 f"Update differs from its signed metadata: {item['name']}")
+    verify_payload_setup(directory / update['full']['name'], release)
     for kind in ('offline', 'web'):
         name = f'KryptonSetup-{release}-{kind}-x64.exe'
         stage.verify(directory / name)
